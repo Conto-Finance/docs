@@ -1,0 +1,115 @@
+---
+title: "Conto Hybrid Integration"
+description: "Use Conto as the spend-management control plane while your app keeps execution and settlement."
+---
+
+## Summary
+
+Use the hybrid model when your app already owns the workflow and payment path, but you want Conto to enforce spend policy before money moves.
+
+In this model:
+
+- your app decides when a paid action is about to happen
+- Conto approves, denies, or gates the payment
+- your app executes the settlement
+- your app records the final spend back to Conto
+
+## How hybrid differs from managed execution
+
+In a managed-execution setup, Conto both authorizes and executes the payment from a Conto-managed wallet.
+
+In a hybrid setup, your app still executes the payment. Conto acts as the control plane for policy, approvals, and auditability.
+
+The key rule is simple:
+
+Conto should make the authorization decision before your app executes the payment.
+
+If your app settles first and reports later, Conto becomes an analytics mirror instead of a real spend-control layer.
+
+## When to use this model
+
+Choose the hybrid model when:
+
+- your app already has its own treasury or payment executor
+- paid events are embedded inside a larger workflow
+- you need budget checks before API calls, machine payments, or provider settlements
+- you want Conto controls without rebuilding your runtime around Conto-managed execution
+
+This pattern is a strong fit for AI products, agents, marketplaces, and apps that use `x402`, `MPP`, or similar machine-payment rails.
+
+## Responsibility split
+
+### Your app owns
+
+- user experience
+- workflow and routing logic
+- provider selection and fallback behavior
+- execution timing
+- the actual settlement call
+- application-specific state
+
+### Conto owns
+
+- spend policies
+- approval thresholds
+- allowlists and counterparties
+- budget controls
+- runtime authorization
+- audit visibility
+- spend analytics
+
+## Recommended integration flow
+
+<Steps>
+  <Step title="Store user-facing controls in your app">
+    Keep your own product settings and sync only the Conto-compatible subset into Conto.
+  </Step>
+  <Step title="Provision a Conto agent for each managed actor">
+    Create one agent per user, workspace, bot, or customer environment that needs isolated limits and audit history.
+  </Step>
+  <Step title="Create and protect runtime credentials">
+    Create a runtime credential for that agent, encrypt it at rest, and keep it server-side only.
+  </Step>
+  <Step title="Sync policy objects into Conto">
+    Translate your product settings into Conto policies whenever limits, allowlists, or approval rules change.
+  </Step>
+  <Step title="Call Conto before settlement">
+    Send the payment context to Conto runtime authorization before your app executes the paid action.
+  </Step>
+  <Step title="Execute payment in your own runtime">
+    If the payment is approved, let your existing executor, treasury, or protocol adapter handle settlement.
+  </Step>
+  <Step title="Record settled spend back to Conto">
+    Send the final amount, recipient, and transaction or payment reference back to Conto for audit and analytics.
+  </Step>
+</Steps>
+
+## Common policy mappings
+
+| Product control | Conto primitive |
+| --- | --- |
+| Max spend per action | `SPEND_LIMIT` |
+| Budget per session or run | `BUDGET_ALLOCATION` |
+| Allowed providers or vendors | `COUNTERPARTY` or `WHITELIST` |
+| Human review threshold | `APPROVAL_THRESHOLD` |
+| Time-based restrictions | Time or blackout-related policy types |
+
+## Verification checklist
+
+Use this checklist after setup:
+
+- the SDK is installed and importable
+- organization credentials are configured server-side
+- each managed actor gets a dedicated Conto binding
+- runtime credentials are encrypted at rest
+- policy changes update Conto objects
+- pre-authorization happens before settlement
+- denied payments never reach the execution layer
+- successful payments are recorded back to Conto
+- your product surfaces workspace status and recent runtime events
+
+## Why this model works
+
+The hybrid model lets you add strong spend controls without giving up your existing runtime.
+
+You keep your app's orchestration and execution flow, while Conto adds approval logic, limits, and auditability at the point where payment decisions matter most.
