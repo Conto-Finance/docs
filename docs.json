@@ -22,6 +22,12 @@
             ]
           },
           {
+            "group": "Integrations",
+            "pages": [
+              "conto-hybrid-integration"
+            ]
+          },
+          {
             "group": "Customization",
             "pages": [
               "essentials/settings",
