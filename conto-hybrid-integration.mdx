@@ -30,12 +30,18 @@ If your app settles first and reports later, Conto becomes an analytics mirror i
 
 Choose the hybrid model when:
 
-- your app already has its own treasury or payment executor
+- your app already has its own treasury, payment executor, or internal provider gateway
 - paid events are embedded inside a larger workflow
 - you need budget checks before API calls, machine payments, or provider settlements
 - you want Conto controls without rebuilding your runtime around Conto-managed execution
 
-This pattern is a strong fit for AI products, agents, marketplaces, and apps that use `x402`, `MPP`, or similar machine-payment rails.
+This pattern is a strong fit for:
+
+- AI orchestration products
+- agent systems
+- marketplaces with internal routing logic
+- apps that use `x402`, `MPP`, or similar machine-payment rails
+- products where one user action may trigger provider selection, fallback logic, and conditional spend
 
 ## Responsibility split
 
@@ -44,6 +50,7 @@ This pattern is a strong fit for AI products, agents, marketplaces, and apps tha
 - user experience
 - workflow and routing logic
 - provider selection and fallback behavior
+- request compilation
 - execution timing
 - the actual settlement call
 - application-specific state
@@ -77,12 +84,24 @@ This pattern is a strong fit for AI products, agents, marketplaces, and apps tha
     Send the payment context to Conto runtime authorization before your app executes the paid action.
   </Step>
   <Step title="Execute payment in your own runtime">
-    If the payment is approved, let your existing executor, treasury, or protocol adapter handle settlement.
+    If the payment is approved, let your existing executor, treasury, protocol adapter, or internal provider gateway handle settlement.
   </Step>
   <Step title="Record settled spend back to Conto">
     Send the final amount, recipient, and transaction or payment reference back to Conto for audit and analytics.
   </Step>
 </Steps>
+
+## Product-facing source of truth
+
+Your app should usually stay the source of truth for user-facing controls and workflow state.
+
+That means:
+
+- keep routing preferences, UX mode, model defaults, and fallback rules in your own runtime
+- sync only the Conto-compatible spend controls into Conto
+- treat Conto as the enforcement layer for spend governance, not the owner of every product setting
+
+This keeps the user experience simple while letting Conto enforce the rules that actually matter before money moves.
 
 ## Common policy mappings
 
@@ -93,6 +112,32 @@ This pattern is a strong fit for AI products, agents, marketplaces, and apps tha
 | Allowed providers or vendors | `COUNTERPARTY` or `WHITELIST` |
 | Human review threshold | `APPROVAL_THRESHOLD` |
 | Time-based restrictions | Time or blackout-related policy types |
+
+Not every product setting belongs in Conto. Keep app-local controls like fallback behavior or model defaults in your own runtime, and sync only the spend-governance subset that Conto can enforce.
+
+## Live backend integration pattern
+
+For a production hybrid integration, the backend usually looks like this:
+
+1. Provision a dedicated Conto agent for each managed actor.
+2. Create a runtime credential for that agent and encrypt it at rest.
+3. Persist your app's own settings server-side as the product-facing source of truth.
+4. Sync the Conto-compatible subset of those settings into real Conto policy objects.
+5. Right before payment, send the real payment context to Conto runtime authorization.
+6. If approved, continue to the paid provider request in your own runtime.
+7. After settlement, record the final spend back to Conto for analytics and auditability.
+
+This is the pattern that turns Conto into a real control plane instead of a passive reporting layer.
+
+## Typical runtime outcomes
+
+When your app asks Conto to authorize a payment, the common outcomes are:
+
+- `APPROVED`
+- `DENIED`
+- `REQUIRES_APPROVAL`
+
+Your app should stop the payment if Conto denies it, and pause for human approval if the decision requires it.
 
 ## Verification checklist
 
@@ -106,7 +151,7 @@ Use this checklist after setup:
 - pre-authorization happens before settlement
 - denied payments never reach the execution layer
 - successful payments are recorded back to Conto
-- your product surfaces workspace status and recent runtime events
+- your product surfaces workspace status, recent runtime events, and approval-required states
 
 ## Why this model works
 
